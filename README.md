@@ -11,6 +11,10 @@ Additional information about the programs is available on the blog
 post at [Galileo
 Onwards](https://medium.com/galileo-onwards/java-self-modify-ecae04189196).
 
+## Prerequisites
+
+* Java 11
+
 ## Building and running
 
 The respective java files also include build and run instructions.
