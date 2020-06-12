@@ -15,6 +15,8 @@ import java.util.Map.Entry;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
+import javax.lang.model.SourceVersion;
+
 /**
  * Given a file, generates a byte array which can represent that file.
  *
@@ -30,8 +32,8 @@ import java.util.stream.IntStream;
  * <p>More typical usage:
  * <pre>
  * $ java GenByteArray.java GenByteArray.java
- *         byte A=44,B=42,C=61,D=83,E=123,F=125,G=106,H=120,I=62,J=119,K=49,L=48;
- * 222 more output lines elided....
+ *         byte $=79,A=59,B=42,C=61,D=83,E=106,F=120,G=123,H=125,I=62,J=119,K=49;
+ * 238 more output lines elided....
  * </pre>
  */
 /*
@@ -71,24 +73,29 @@ public class GenByteArray {
                 .collect(toList());
 
         var byteVarname = new HashMap<Byte, String>(256);
-        var varCounter = new Counter();
+        var varCounter = new ByteVarGenerator();
+        String variable = null;
         for (Entry<String, Integer> e : mostFreq) {
             byte v = Byte.parseByte(e.getKey());
             int freq = e.getValue().intValue();
 
             int bytesOccupied = e.getKey().length() * freq;
-            var variable = varCounter.peekCounter();
+            variable = variable == null ? varCounter.nextVar() : variable;
             int bytesSaved = bytesOccupied - ((variable.length() * freq)
                     + variable.length() + 2);
 
             if (bytesSaved > 0) {
-                byteVarname.put(Byte.valueOf(v), varCounter.nextCounter());
+                byteVarname.put(Byte.valueOf(v), variable);
+                variable = null;
             }
         }
 
         var buf = new StringBuilder();
         var byteVarnames = byteVarname.entrySet().stream()
-                .sorted(comparing(e -> e.getValue()))
+                .sorted((e1, e2) ->
+                        (e1.getValue().length() == e2.getValue().length()
+                         ? e1.getValue().compareTo(e2.getValue())
+                         : e1.getValue().length() - e2.getValue().length()))
                 .collect(toList());
         var declarations = append(
                 byteVarnames,
@@ -153,72 +160,68 @@ public class GenByteArray {
     }
 
     /**
-     * A variable name generator.  It doesn't work for counting up to
-     * thousands but it generates unique variable names for a domain
-     * of 256 values.  It'll do.
+     * A variable name generator.  Guarantees that the variable names
+     * generated are also valid Java identifiers.
      *
      * <p>Typical usage:
      *
      * <pre>{@code
      * var counter = new Counter();
      *
-     * var variableName = counter.nextCounter();
+     * var variableName = counter.nextVar();
      * for (int i = 0; i < N; ++i) {
-     *     System.out.println(counter.nextCounter());
+     *     System.out.println(counter.nextVar());
      * }
      * }</pre>
      */
-    private static final class Counter {
-        private static final String COUNTERS1 = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        private static final String COUNTERS2 = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
+    private static final class ByteVarGenerator {
+        private static final String COUNTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789$_";
 
         private int counterId = 0;
 
         /**
          * Returns the next variable name.
          */
-        public String nextCounter() {
-            String d = peekCounter();
+        public String nextVar() {
+            String num;
+            for (num = toBase(counterId, COUNTERS, new StringBuilder());
+                    !SourceVersion.isName(num);
+                    num = toBase(counterId, COUNTERS, new StringBuilder())) {
+                ++counterId;
+            }
 
             ++counterId;
-
-            return d;
+            return num;
         }
 
-        public String peekCounter() {
-            int v = counterId % COUNTERS1.length();
-            String d = toBaseN(v, COUNTERS1);
-
-            v = counterId / COUNTERS1.length();
-
-            if (v > 0) {
-                d = toBaseN(v - 1, COUNTERS2) + d;
+        /**
+         * Returns value in base represented by the length of chars.
+         * The values are collected in the provided builder.
+         *
+         * @param value the value to be converted.  Must not be negative.
+         * @param digits digit representation of the eventual number,
+         * the first digit is the smallest number.  For example, the
+         * decimal numbers would be passed in as "0123456789".  No
+         * checks are performed to ensure an absence of duplicate
+         * digits.
+         */
+        private static final String toBase(
+                final int value,
+                final String digits,
+                final StringBuilder builder) {
+            if (value < 0) {
+                return builder.reverse().toString();
             }
 
-            return d;
-        }
+            int base = digits.length();
+            int mod = value % base;
+            int div = value / base - 1;
+            char c = digits.charAt(mod);
 
-        private String toBaseN(int v, String chars) {
-            if (v == 0) {
-                return chars.substring(0, 1);
-            }
+            builder
+                    .append(c);
 
-            int base = chars.length();
-
-            final int len;
-            if (v < base) {
-                len = 1;
-            } else {
-                len = (int) ceil(log(max(1, v)) / log(base));
-            }
-
-            StringBuilder num = new StringBuilder(len);
-
-            for (; v > 0; v /= base) {
-                num.append(chars.charAt(v % base));
-            }
-
-            return num.reverse().toString();
+            return toBase(div, digits, builder);
         }
     }
 }
