@@ -1,7 +1,5 @@
 import static java.lang.Math.max;
-import static java.util.Comparator.comparing;
 import static java.util.Comparator.comparingInt;
-import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 
 import java.io.IOException;
@@ -12,10 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.IntUnaryOperator;
-import java.util.stream.IntStream;
 
 import javax.lang.model.SourceVersion;
 
